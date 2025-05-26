@@ -1,14 +1,18 @@
 {
-  "name": "@modelcontextprotocol/server-checkpoint",
+  "name": "mcp-time-travel",
   "version": "0.1.0",
-  "description": "MCP server for checkpoint-based time travel functionality in AI agent sessions",
+  "description": "MCP server providing time travel functionality for AI agent sessions through workspace checkpoints",
   "license": "MIT",
-  "author": "Anthropic, PBC (https://anthropic.com)",
-  "homepage": "https://modelcontextprotocol.io",
-  "bugs": "https://github.com/modelcontextprotocol/servers/issues",
+  "author": "Claude (Anthropic)",
+  "homepage": "https://github.com/surfiend/mcp-time-travel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surfiend/mcp-time-travel.git"
+  },
+  "bugs": "https://github.com/surfiend/mcp-time-travel/issues",
   "type": "module",
   "bin": {
-    "mcp-server-checkpoint": "dist/index.js"
+    "mcp-time-travel": "dist/index.js"
   },
   "files": [
     "dist"

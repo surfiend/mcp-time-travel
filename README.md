@@ -16,14 +16,14 @@ An MCP (Model Context Protocol) server that provides "time travel" functionality
 
 #### NPM (Recommended)
 ```bash
-npx @modelcontextprotocol/server-checkpoint
+npx mcp-time-travel
 ```
 
 #### Manual Installation
 ```bash
 # Clone and build
-git clone https://github.com/modelcontextprotocol/servers.git
-cd servers/checkpoint
+git clone https://github.com/surfiend/mcp-time-travel.git
+cd mcp-time-travel
 npm install
 npm run build
 ```
@@ -36,9 +36,9 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "checkpoint": {
+    "time-travel": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-checkpoint"],
+      "args": ["-y", "mcp-time-travel"],
       "env": {
         "CHECKPOINT_WORKSPACE_PATH": "/path/to/your/workspace",
         "CHECKPOINT_STORAGE_PATH": "/path/to/checkpoint/storage"
@@ -52,7 +52,7 @@ Add to your `claude_desktop_config.json`:
 For other MCP-compatible clients, use:
 
 ```bash
-node /path/to/mcp-checkpoint/dist/index.js
+node /path/to/mcp-time-travel/dist/index.js
 ```
 
 ## Environment Variables
@@ -215,5 +215,5 @@ MIT License - see LICENSE file for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/modelcontextprotocol/servers/issues)
+- **Issues**: [GitHub Issues](https://github.com/surfiend/mcp-time-travel/issues)
 - **Documentation**: [MCP Documentation](https://modelcontextprotocol.io)
