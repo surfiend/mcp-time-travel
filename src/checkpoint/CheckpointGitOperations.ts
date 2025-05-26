@@ -138,7 +138,11 @@ export class GitOperations {
     const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
       cwd: this.cwd,
       onlyDirectories: true,
-      ignore: [".git"], // Ignore root level .git
+      ignore: [
+        ".git", // Ignore root level .git
+        ".mcp-checkpoint/**/.git", // Ignore shadow git repositories
+        "**/.mcp-checkpoint/**/.git" // Ignore any nested mcp-checkpoint dirs
+      ],
       dot: true,
       markDirectories: false,
       suppressErrors: true,
@@ -184,18 +188,14 @@ export class GitOperations {
    *  - Nested git repo handling fails
    */
   public async addCheckpointFiles(git: SimpleGit): Promise<CheckpointAddResult> {
-    const startTime = performance.now();
     try {
       // Update exclude patterns before each commit
       await this.renameNestedGitRepos(true);
-      console.info("Starting checkpoint add operation...");
 
       // Attempt to add all files. Any files with permissions errors will not be added,
       // but the process will proceed and add the rest (--ignore-errors).
       try {
         await git.add([".", "--ignore-errors"]);
-        const durationMs = Math.round(performance.now() - startTime);
-        console.debug(`Checkpoint add operation completed in ${durationMs}ms`);
         return { success: true };
       } catch (error) {
         return { success: false };

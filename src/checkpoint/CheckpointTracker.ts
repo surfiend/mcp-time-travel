@@ -157,7 +157,10 @@ class CheckpointTracker {
       const startTime = performance.now();
 
       const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
-      const git = simpleGit(path.dirname(gitPath));
+      // Use workspace as working directory, but point to shadow git
+      const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+        .env('GIT_DIR', gitPath)
+        .env('GIT_WORK_TREE', this.cwd);
 
       console.info(`Using shadow git at: ${gitPath}`);
 
@@ -247,7 +250,9 @@ class CheckpointTracker {
     const startTime = performance.now();
 
     const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
-    const git = simpleGit(path.dirname(gitPath));
+    const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+      .env('GIT_DIR', gitPath)
+      .env('GIT_WORK_TREE', this.cwd);
     console.debug(`Using shadow git at: ${gitPath}`);
     await git.reset(["--hard", this.cleanCommitHash(commitHash)]); // Hard reset to target commit
     console.debug(`Successfully reset to checkpoint: ${commitHash}`);
@@ -276,17 +281,22 @@ class CheckpointTracker {
     const startTime = performance.now();
 
     const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
-    const git = simpleGit(path.dirname(gitPath));
+    const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+      .env('GIT_DIR', gitPath)
+      .env('GIT_WORK_TREE', this.cwd);
 
     console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`);
 
     // Stage all changes so that untracked files appear in diff summary
     await this.gitOperations.addCheckpointFiles(git);
 
+    const cleanLhs = this.cleanCommitHash(lhsHash);
     const cleanRhs = rhsHash ? this.cleanCommitHash(rhsHash) : undefined;
-    const diffRange = cleanRhs ? `${this.cleanCommitHash(lhsHash)}..${cleanRhs}` : this.cleanCommitHash(lhsHash);
-    console.info(`Diff range: ${diffRange}`);
-    const diffSummary = await git.diffSummary([diffRange]);
+    
+    // For git diff between commits, pass them as separate arguments, not with ".."
+    const diffSummary = cleanRhs 
+      ? await git.diffSummary([cleanLhs, cleanRhs])
+      : await git.diffSummary([cleanLhs]);
 
     const result = [];
     for (const file of diffSummary.files) {
@@ -341,16 +351,23 @@ class CheckpointTracker {
     const startTime = performance.now();
 
     const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
-    const git = simpleGit(path.dirname(gitPath));
+    const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+      .env('GIT_DIR', gitPath)
+      .env('GIT_WORK_TREE', this.cwd);
 
     console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`);
 
     // Stage all changes so that untracked files appear in diff summary
     await this.gitOperations.addCheckpointFiles(git);
 
+    const cleanLhs = this.cleanCommitHash(lhsHash);
     const cleanRhs = rhsHash ? this.cleanCommitHash(rhsHash) : undefined;
-    const diffRange = cleanRhs ? `${this.cleanCommitHash(lhsHash)}..${cleanRhs}` : this.cleanCommitHash(lhsHash);
-    const diffSummary = await git.diffSummary([diffRange]);
+    
+    // For git diff between commits, pass them as separate arguments, not with ".."
+    const diffSummary = cleanRhs 
+      ? await git.diffSummary([cleanLhs, cleanRhs])
+      : await git.diffSummary([cleanLhs]);
+
 
     const durationMs = Math.round(performance.now() - startTime);
     console.info(`Diff count generated in ${durationMs}ms`);
@@ -365,7 +382,9 @@ class CheckpointTracker {
    */
   public async getCommitLog(maxCount: number = 50) {
     const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
-    const git = simpleGit(path.dirname(gitPath));
+    const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+      .env('GIT_DIR', gitPath)
+      .env('GIT_WORK_TREE', this.cwd);
     
     const log = await git.log({ maxCount });
     return log.all;

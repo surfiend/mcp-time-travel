@@ -17,32 +17,41 @@ export async function createCheckpoint(args: z.infer<typeof CreateCheckpointSche
   const tracker = await CheckpointTracker.create(taskId, config.storagePath, config.workspacePath);
   
   try {
+    // Get workspace info for metadata
+    const workspaceInfo = tracker.getWorkspaceInfo();
+    
+    // Get the latest checkpoint BEFORE creating the new commit
+    const metadataStore = new CheckpointMetadataStore(config.storagePath, workspaceInfo.cwdHash);
+    const latestCheckpoint = await metadataStore.getLatestCheckpoint();
+    
     const commitHash = await tracker.commit();
     if (!commitHash) {
       throw new Error("Failed to create checkpoint commit");
     }
 
-    // Get workspace info for metadata
-    const workspaceInfo = tracker.getWorkspaceInfo();
-    
     // Create checkpoint metadata
     const checkpointId = generateId();
     const timestamp = new Date().toISOString();
     
-    // Get number of changed files (compare to latest checkpoint or initial)
-    const metadataStore = new CheckpointMetadataStore(config.storagePath, workspaceInfo.cwdHash);
-    const latestCheckpoint = await metadataStore.getLatestCheckpoint();
-    
     let filesChanged = 0;
     if (latestCheckpoint) {
-      filesChanged = await tracker.getDiffCount(latestCheckpoint.commitHash);
-    } else {
-      // For the first checkpoint, count all tracked files
-      const log = await tracker.getCommitLog(1);
-      if (log.length > 0) {
-        // This is a rough estimate - in practice we'd need to count the files in the initial commit
-        filesChanged = 1; // Placeholder for initial commit
+      // Compare from previous checkpoint to the new commit we just created
+      console.info(`Calculating diff between previous checkpoint ${latestCheckpoint.commitHash} and new commit ${commitHash}`);
+      
+      // Safeguard: if the commits are the same, this might indicate no changes were made
+      if (latestCheckpoint.commitHash === commitHash) {
+        console.warn(`Warning: New commit hash is same as previous checkpoint - no changes detected`);
+        filesChanged = 0;
+      } else {
+        filesChanged = await tracker.getDiffCount(latestCheckpoint.commitHash, commitHash);
       }
+      console.info(`Files changed in this checkpoint: ${filesChanged}`);
+    } else {
+      // For the first checkpoint, count all tracked files in the initial commit
+      console.info(`First checkpoint - comparing against empty tree to commit ${commitHash}`);
+      const diffSummary = await tracker.getDiffCount("4b825dc642cb6eb9a060e54bf8d69288fbee4904", commitHash); // empty tree hash
+      filesChanged = diffSummary;
+      console.info(`Files in first checkpoint: ${filesChanged}`);
     }
 
     // Save checkpoint metadata

@@ -5,7 +5,7 @@ An MCP (Model Context Protocol) server that provides "time travel" functionality
 ## Features
 
 - **Create Checkpoints**: Snapshot your workspace state at any point
-- **Timeline View**: See chronological history of all checkpoints
+- **Timeline View**: See chronological history of all checkpoints  
 - **Rollback**: Restore workspace to any previous checkpoint
 - **Diff Viewer**: Compare changes between checkpoints
 - **Status Monitoring**: Track checkpoint system status
@@ -14,14 +14,18 @@ An MCP (Model Context Protocol) server that provides "time travel" functionality
 
 ### Installation
 
-#### NPX (Recommended)
+#### NPM (Recommended)
 ```bash
-npx -y @modelcontextprotocol/server-checkpoint
+npx @modelcontextprotocol/server-checkpoint
 ```
 
-#### Docker
+#### Manual Installation
 ```bash
-docker run -i -v /path/to/workspace:/workspace -v checkpoint-storage:/app/checkpoints mcp/checkpoint
+# Clone and build
+git clone https://github.com/modelcontextprotocol/servers.git
+cd servers/checkpoint
+npm install
+npm run build
 ```
 
 ### Configuration
@@ -44,31 +48,17 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-#### VS Code
-Add to your VS Code settings or `.vscode/mcp.json`:
+#### Other MCP Clients
+For other MCP-compatible clients, use:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "checkpoint": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-checkpoint"],
-        "env": {
-          "CHECKPOINT_WORKSPACE_PATH": "/path/to/your/workspace",
-          "CHECKPOINT_STORAGE_PATH": "/path/to/checkpoint/storage"
-        }
-      }
-    }
-  }
-}
+```bash
+node /path/to/mcp-checkpoint/dist/index.js
 ```
 
 ## Environment Variables
 
 - `CHECKPOINT_WORKSPACE_PATH`: Path to the workspace to track (default: current directory)
 - `CHECKPOINT_STORAGE_PATH`: Path to store checkpoint data (default: `~/.mcp-checkpoint`)
-- `CHECKPOINT_EXCLUSIONS_FILE`: Path to custom exclusions file (optional)
 
 ## Available Tools
 
@@ -76,16 +66,16 @@ Add to your VS Code settings or `.vscode/mcp.json`:
 Create a new checkpoint of the current workspace state.
 
 **Parameters:**
-- `message` (optional): Description for the checkpoint
+- `description` (optional): Description for the checkpoint
 
 **Example:**
 ```json
 {
-  "message": "Added user authentication system"
+  "description": "Added user authentication system"
 }
 ```
 
-### `show_timeline`
+### `show_timeline` 
 Display chronological timeline of all checkpoints.
 
 **Parameters:**
@@ -95,14 +85,14 @@ Display chronological timeline of all checkpoints.
 Rollback workspace to a previous checkpoint state.
 
 **Parameters:**
-- `checkpointId` (required): ID of the checkpoint to restore
+- `checkpoint_id` (required): ID or number of the checkpoint to restore
 
 ### `show_diff`
 Show differences between checkpoints or between a checkpoint and current state.
 
 **Parameters:**
-- `fromCheckpoint` (required): ID of the checkpoint to compare from
-- `toCheckpoint` (optional): ID of the checkpoint to compare to (defaults to current state)
+- `from_checkpoint` (required): ID of the checkpoint to compare from
+- `to_checkpoint` (optional): ID of the checkpoint to compare to (defaults to current state)
 
 ### `checkpoint_status`
 Show current checkpoint system status and information.
@@ -122,11 +112,11 @@ The checkpoint system uses a "shadow Git repository" approach:
 
 By default, the following are excluded from checkpoints:
 - Build artifacts (`node_modules/`, `dist/`, `build/`, etc.)
-- Media files (images, videos, audio)
+- Media files (images, videos, audio) 
 - Cache and temporary files
 - Environment configuration files
 - Database files
-- Large binary files
+- Large binary files (configurable via Git LFS patterns)
 
 ## Safety Features
 
@@ -134,6 +124,33 @@ By default, the following are excluded from checkpoints:
 - Validates workspace permissions before operations
 - Handles nested Git repositories safely
 - Comprehensive error handling and recovery
+- Never interferes with existing Git workflows
+
+## Testing
+
+### Basic Test
+```bash
+# Run the automated test suite
+./tests/test-simple.sh
+```
+
+### Manual Testing
+```bash
+# Build first
+npm run build
+
+# Test status
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"checkpoint_status","arguments":{}}}' | node dist/index.js
+
+# Test checkpoint creation
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_checkpoint","arguments":{"description":"Test checkpoint"}}}' | node dist/index.js
+```
+
+### Advanced Testing
+```bash
+# Run the full interactive test suite
+node tests/test-client.js
+```
 
 ## Development
 
@@ -142,22 +159,22 @@ By default, the following are excluded from checkpoints:
 npm run build
 ```
 
-### Watching
+### Watching for Changes
 ```bash
 npm run watch
 ```
 
-### Docker Build
+### Docker
 ```bash
 docker build -t mcp/checkpoint .
 ```
 
 ## Architecture
 
-- **CheckpointTracker**: Core checkpoint management
-- **GitOperations**: Git-specific operations for shadow repositories
+- **CheckpointTracker**: Core checkpoint management and Git operations
+- **GitOperations**: Low-level Git operations for shadow repositories  
 - **CheckpointMetadata**: Metadata storage and retrieval
-- **Tools**: Individual MCP tool implementations
+- **Tools**: Individual MCP tool implementations (`create_checkpoint`, `show_timeline`, etc.)
 - **Config**: Environment configuration and validation
 
 ## Troubleshooting
@@ -172,7 +189,16 @@ git --version
 Make sure the workspace and storage directories have appropriate read/write permissions.
 
 ### Large Repository Performance
-The system automatically excludes large files and binary content. For very large repositories, consider adding custom exclusion patterns.
+The system automatically excludes large files and binary content. For very large repositories, consider custom exclusion patterns via Git LFS configuration.
+
+### Nested Git Repositories
+The system safely handles nested Git repositories by temporarily disabling them during checkpoint operations, then re-enabling them afterward.
+
+## Requirements
+
+- Node.js 18+ 
+- Git 2.0+
+- Read/write access to workspace and storage directories
 
 ## License
 
@@ -180,10 +206,14 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-Contributions welcome! Please see CONTRIBUTING.md for guidelines.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/modelcontextprotocol/servers/issues)
 - **Documentation**: [MCP Documentation](https://modelcontextprotocol.io)
-- **Community**: [MCP Discord](https://discord.gg/modelcontextprotocol)
