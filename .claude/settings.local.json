@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(node test-client.js)",
+      "Bash(./test-simple.sh:*)",
+      "Bash(npm run build:*)"
+    ],
+    "deny": []
+  }
+}
