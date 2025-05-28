@@ -178,6 +178,7 @@ function getCacheFilePatterns(): string[] {
     "*.temp",
     "*.tmp",
     "*.Thumbs.db",
+    "metadata.json",
   ];
 }
 
