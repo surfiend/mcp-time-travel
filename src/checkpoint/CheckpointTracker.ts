@@ -3,6 +3,8 @@ import * as path from "path";
 import simpleGit from "simple-git";
 import { GitOperations } from "./CheckpointGitOperations.js";
 import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils.js";
+import { getDefaultExclusions, getLfsPatterns } from "./CheckpointExclusions.js";
+import { DebugLogger } from "../debug-logger.js";
 import type { CheckpointDiff } from "../types.js";
 
 /**
@@ -292,9 +294,9 @@ class CheckpointTracker {
 
     const cleanLhs = this.cleanCommitHash(lhsHash);
     const cleanRhs = rhsHash ? this.cleanCommitHash(rhsHash) : undefined;
-    
+
     // For git diff between commits, pass them as separate arguments, not with ".."
-    const diffSummary = cleanRhs 
+    const diffSummary = cleanRhs
       ? await git.diffSummary([cleanLhs, cleanRhs])
       : await git.diffSummary([cleanLhs]);
 
@@ -362,9 +364,9 @@ class CheckpointTracker {
 
     const cleanLhs = this.cleanCommitHash(lhsHash);
     const cleanRhs = rhsHash ? this.cleanCommitHash(rhsHash) : undefined;
-    
+
     // For git diff between commits, pass them as separate arguments, not with ".."
-    const diffSummary = cleanRhs 
+    const diffSummary = cleanRhs
       ? await git.diffSummary([cleanLhs, cleanRhs])
       : await git.diffSummary([cleanLhs]);
 
@@ -385,9 +387,170 @@ class CheckpointTracker {
     const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
       .env('GIT_DIR', gitPath)
       .env('GIT_WORK_TREE', this.cwd);
-    
+
     const log = await git.log({ maxCount });
     return log.all;
+  }
+
+  /**
+   * Gets the list of files that have actually changed in the workspace
+   * before any staging operations. This provides an accurate count of
+   * user-initiated changes without the noise of the broad staging process.
+   *
+   * @returns Promise<string[]> Array of file paths that have actually changed
+   */
+  public async getActualChangedFiles(): Promise<string[]> {
+    try {
+      const gitPath = await getShadowGitPath(this.storagePath, this.taskId, this.cwdHash);
+      const git = simpleGit(this.cwd, { baseDir: this.cwd, binary: 'git' })
+        .env('GIT_DIR', gitPath)
+        .env('GIT_WORK_TREE', this.cwd);
+
+      // Get workspace-specific LFS patterns for exclusion filtering
+      const lfsPatterns = await getLfsPatterns(this.cwd);
+      const exclusionPatterns = getDefaultExclusions(lfsPatterns);
+
+      // Create a set of exclusion patterns for efficient lookup
+      const exclusionSet = new Set(exclusionPatterns);
+
+      // Use git status to get actually modified, new, and deleted files
+      const status = await git.status();
+      const changedFiles: string[] = [];
+
+      // Debug: Log all git status results
+      await DebugLogger.info(`Git status results:`, {
+        modified: status.modified,
+        not_added: status.not_added,
+        deleted: status.deleted,
+        renamed: status.renamed,
+        created: status.created,
+        conflicted: status.conflicted,
+        staged: status.staged
+      });
+
+      // Collect all types of changes
+      const allChanges = [
+        ...status.modified,
+        ...status.not_added,
+        ...status.deleted,
+        ...status.renamed.map(r => r.to),
+        ...status.created
+      ];
+
+      await DebugLogger.info(`Total changes detected: ${allChanges.length}`, allChanges);
+
+      // Filter out excluded patterns with enhanced exclusion logic
+      for (const file of allChanges) {
+        let shouldExclude = false;
+        const fileName = file.split('/').pop() || file;
+
+        // Always exclude .mcp-checkpoint internal files (any path containing it)
+        if (file.includes('.mcp-checkpoint') || file.startsWith('.mcp-checkpoint') ||
+            file.includes(this.cwdHash) || file.includes('metadata.json')) {
+          shouldExclude = true;
+          await DebugLogger.debug(`Excluding internal checkpoint file: ${file}`);
+        }
+        // Exclude common system files that might be picked up
+        else if (fileName === 'metadata.json' || fileName === '.DS_Store' || fileName.startsWith('._')) {
+          shouldExclude = true;
+          await DebugLogger.debug(`Excluding system file: ${file}`);
+        }
+        // Apply standard exclusion patterns
+        else {
+          for (const pattern of exclusionSet) {
+            if (this.matchesPattern(file, pattern)) {
+              shouldExclude = true;
+              await DebugLogger.debug(`Excluding file ${file} due to pattern: ${pattern}`);
+              break;
+            }
+          }
+        }
+
+        if (!shouldExclude) {
+          // Validate that the file actually exists (for non-deleted files) or was deleted
+          const isDeleted = status.deleted.includes(file);
+          if (isDeleted) {
+            changedFiles.push(file);
+            await DebugLogger.info(`Including deleted file: ${file}`);
+          } else {
+            // Check if file exists before including it
+            try {
+              const fullPath = path.join(this.cwd, file);
+              await fs.access(fullPath);
+              changedFiles.push(file);
+              await DebugLogger.info(`Including changed file: ${file}`);
+            } catch {
+              await DebugLogger.info(`Skipping non-existent file: ${file}`);
+            }
+          }
+        } else {
+          await DebugLogger.info(`Excluded file: ${file} (reason: ${file.includes('.mcp-checkpoint') ? 'internal' : 'pattern match'})`);
+        }
+      }
+
+      await DebugLogger.info(`Found ${changedFiles.length} actual changed files (filtered from ${allChanges.length} total changes)`);
+      if (changedFiles.length > 0) {
+        await DebugLogger.info(`Changed files: ${changedFiles.join(', ')}`);
+      }
+      if (allChanges.length !== changedFiles.length) {
+        const excludedFiles = allChanges.filter(f => !changedFiles.includes(f));
+        await DebugLogger.debug(`Excluded files: ${excludedFiles.join(', ')}`);
+      }
+      
+      // Final debug logging
+      await DebugLogger.warn(`getActualChangedFiles() returning: ${changedFiles.length} files`);
+      await DebugLogger.warn(`Files: ${JSON.stringify(changedFiles)}`);
+
+      return changedFiles;
+    } catch (error) {
+      console.error("Failed to get actual changed files:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Helper method to check if a file matches an exclusion pattern
+   * @param file - The file path to check
+   * @param pattern - The exclusion pattern
+   * @returns true if the file matches the pattern
+   */
+  private matchesPattern(file: string, pattern: string): boolean {
+    if (pattern.endsWith('/')) {
+      // Directory pattern - check if file is in this directory
+      const dirPattern = pattern.slice(0, -1); // Remove trailing slash
+      return file.startsWith(dirPattern + '/') || file === dirPattern;
+    } else if (pattern.startsWith('*.')) {
+      // Extension pattern - check file extension
+      const ext = pattern.slice(1); // Remove the *
+      return file.endsWith(ext);
+    } else if (pattern.includes('*')) {
+      // Other wildcard patterns - convert to regex for basic matching
+      const regexPattern = pattern.replace(/\*/g, '.*');
+      try {
+        return new RegExp(regexPattern).test(file);
+      } catch {
+        // Fallback to exact match if regex fails
+        return file === pattern;
+      }
+    } else {
+      // Exact filename or path match
+      const fileName = file.split('/').pop() || file;
+      return file === pattern || fileName === pattern;
+    }
+  }
+
+  /**
+   * Gets the count of files that have actually changed in the workspace
+   * before any staging operations. This provides an accurate count without
+   * the inflation caused by the broad staging process.
+   *
+   * @returns Promise<number> Number of files that have actually changed
+   */
+  public async getActualChangeCount(): Promise<number> {
+    const changedFiles = await this.getActualChangedFiles();
+    const count = changedFiles.length;
+    await DebugLogger.warn(`getActualChangeCount() returning: ${count}`);
+    return count;
   }
 
   /**

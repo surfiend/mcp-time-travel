@@ -76,6 +76,7 @@ function getBuildArtifactPatterns(): string[] {
   return [
     ".gradle/",
     ".idea/",
+    ".mcp-checkpoint/",
     ".parcel-cache/",
     ".pytest_cache/",
     ".next/",

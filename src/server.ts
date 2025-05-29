@@ -10,6 +10,7 @@ import { showTimeline, ShowTimelineSchema } from "./tools/timeline.js";
 import { rollbackCheckpoint, RollbackCheckpointSchema } from "./tools/rollback.js";
 import { showDiff, ShowDiffSchema } from "./tools/diff.js";
 import { checkpointStatus, CheckpointStatusSchema } from "./tools/status.js";
+import { viewDebugLog, ViewDebugLogSchema, clearDebugLog, ClearDebugLogSchema } from "./tools/debug.js";
 
 export function createCheckpointServer() {
   const server = new Server({
@@ -91,6 +92,27 @@ export function createCheckpointServer() {
             properties: {},
           },
         },
+        {
+          name: "view_debug_log",
+          description: "View recent debug log entries for troubleshooting file counting issues",
+          inputSchema: {
+            type: "object",
+            properties: {
+              lines: {
+                type: "number",
+                description: "Number of lines to show from the end of the log (default: 50)"
+              },
+            },
+          },
+        },
+        {
+          name: "clear_debug_log",
+          description: "Clear the debug log file",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
+        },
       ],
     };
   });
@@ -152,6 +174,28 @@ export function createCheckpointServer() {
         case "checkpoint_status": {
           const validatedArgs = CheckpointStatusSchema.parse(args);
           const result = await checkpointStatus(validatedArgs);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+
+        case "view_debug_log": {
+          const validatedArgs = ViewDebugLogSchema.parse(args);
+          const result = await viewDebugLog(validatedArgs);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        }
+
+        case "clear_debug_log": {
+          const validatedArgs = ClearDebugLogSchema.parse(args);
+          const result = await clearDebugLog();
           return {
             content: [{
               type: "text",

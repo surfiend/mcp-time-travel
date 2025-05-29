@@ -31,6 +31,8 @@ npm run build
 ### Configuration
 
 #### Claude Desktop
+
+**Option 1: NPM Package (Recommended)**
 Add to your `claude_desktop_config.json`:
 
 ```json
@@ -39,6 +41,26 @@ Add to your `claude_desktop_config.json`:
     "time-travel": {
       "command": "npx",
       "args": ["-y", "mcp-time-travel"],
+      "env": {
+        "CHECKPOINT_WORKSPACE_PATH": "/path/to/your/workspace",
+        "CHECKPOINT_STORAGE_PATH": "/path/to/checkpoint/storage"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Local Development/Manual Installation**
+For local development or after manual installation, add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "time-travel": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/mcp-time-travel/dist/index.js"
+      ],
       "env": {
         "CHECKPOINT_WORKSPACE_PATH": "/path/to/your/workspace",
         "CHECKPOINT_STORAGE_PATH": "/path/to/checkpoint/storage"
