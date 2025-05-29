@@ -47,6 +47,68 @@ export async function showDiff(args: z.infer<typeof ShowDiffSchema>): Promise<Di
       if (!toCheckpoint) {
         throw new Error(`Checkpoint not found: ${args.toCheckpoint}`);
       }
+    } else {
+      // If no toCheckpoint specified, find the previous checkpoint to show what changed IN this checkpoint
+      const allCheckpoints = await metadataStore.getAllCheckpoints();
+      const currentIndex = allCheckpoints.findIndex(cp => cp.id === args.fromCheckpoint);
+      if (currentIndex > -1 && currentIndex < allCheckpoints.length - 1) {
+        const previousCheckpoint = allCheckpoints[currentIndex + 1]; // Previous checkpoint (older)
+        console.info(`No toCheckpoint specified, comparing against previous checkpoint: ${previousCheckpoint.id}`);
+        
+        console.info(`Generating diff from ${previousCheckpoint.id} to ${args.fromCheckpoint} (what changed in checkpoint ${args.fromCheckpoint})`);
+
+        // Create a tracker instance to perform the diff
+        const taskId = generateId();
+        const tracker = await CheckpointTracker.create(taskId, config.storagePath, config.workspacePath);
+        
+        // Get the diff data - show what changed FROM previous TO current checkpoint
+        const diffData = await tracker.getDiffSet(
+          previousCheckpoint.commitHash,
+          fromCheckpoint.commitHash
+        );
+        
+        // Process the diff and filter out internal files
+        const changes: DiffEntry[] = diffData
+          .filter(diff => !diff.relativePath.includes('.mcp-checkpoint/'))
+          .map(diff => {
+            const beforeSize = diff.before.length;
+            const afterSize = diff.after.length;
+            
+            let changeType: 'added' | 'modified' | 'deleted';
+            if (beforeSize === 0) {
+              changeType = 'added';
+            } else if (afterSize === 0) {
+              changeType = 'deleted';
+            } else {
+              changeType = 'modified';
+            }
+
+            const beforePreview = createPreview(diff.before);
+            const afterPreview = createPreview(diff.after);
+
+            return {
+              relativePath: diff.relativePath,
+              changeType,
+              beforeSize,
+              afterSize,
+              beforePreview,
+              afterPreview
+            };
+          });
+
+        const result: DiffResult = {
+          fromCheckpointId: args.fromCheckpoint,
+          toCheckpointId: undefined,
+          totalFiles: changes.length,
+          changes
+        };
+
+        console.info(`Diff generated: ${changes.length} files changed in checkpoint ${args.fromCheckpoint}`);
+        return result;
+      }
+      
+      // If no previous checkpoint found, compare to current state but log it clearly
+      console.info(`No previous checkpoint found for ${args.fromCheckpoint}, comparing to current state`);
     }
 
     console.info(`Generating diff from ${args.fromCheckpoint} to ${args.toCheckpoint || 'current state'}`);
@@ -62,32 +124,34 @@ export async function showDiff(args: z.infer<typeof ShowDiffSchema>): Promise<Di
     );
 
     // Process the diff data into a more structured format
-    const changes: DiffEntry[] = diffData.map(diff => {
-      const beforeSize = diff.before.length;
-      const afterSize = diff.after.length;
-      
-      let changeType: 'added' | 'modified' | 'deleted';
-      if (beforeSize === 0) {
-        changeType = 'added';
-      } else if (afterSize === 0) {
-        changeType = 'deleted';
-      } else {
-        changeType = 'modified';
-      }
+    const changes: DiffEntry[] = diffData
+      .filter(diff => !diff.relativePath.includes('.mcp-checkpoint/'))
+      .map(diff => {
+        const beforeSize = diff.before.length;
+        const afterSize = diff.after.length;
+        
+        let changeType: 'added' | 'modified' | 'deleted';
+        if (beforeSize === 0) {
+          changeType = 'added';
+        } else if (afterSize === 0) {
+          changeType = 'deleted';
+        } else {
+          changeType = 'modified';
+        }
 
-      // Create previews for text files (limit to first few lines)
-      const beforePreview = createPreview(diff.before);
-      const afterPreview = createPreview(diff.after);
+        // Create previews for text files (limit to first few lines)
+        const beforePreview = createPreview(diff.before);
+        const afterPreview = createPreview(diff.after);
 
-      return {
-        relativePath: diff.relativePath,
-        changeType,
-        beforeSize,
-        afterSize,
-        beforePreview,
-        afterPreview
-      };
-    });
+        return {
+          relativePath: diff.relativePath,
+          changeType,
+          beforeSize,
+          afterSize,
+          beforePreview,
+          afterPreview
+        };
+      });
 
     const result: DiffResult = {
       fromCheckpointId: args.fromCheckpoint,

@@ -22,6 +22,7 @@ Thumbs.db
 # IDE/editor folders
 .vscode/
 .idea/
+.claude/
 
 # TypeScript build cache
 *.tsbuildinfo
