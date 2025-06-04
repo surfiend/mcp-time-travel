@@ -14,12 +14,6 @@ An MCP (Model Context Protocol) server that provides "time travel" functionality
 
 ### Installation
 
-#### NPM (Recommended)
-```bash
-npx mcp-time-travel
-```
-
-#### Manual Installation
 ```bash
 # Clone and build
 git clone https://github.com/surfiend/mcp-time-travel.git
@@ -32,26 +26,7 @@ npm run build
 
 #### Claude Desktop
 
-**Option 1: NPM Package (Recommended)**
 Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "time-travel": {
-      "command": "npx",
-      "args": ["-y", "mcp-time-travel"],
-      "env": {
-        "CHECKPOINT_WORKSPACE_PATH": "/path/to/your/workspace",
-        "CHECKPOINT_STORAGE_PATH": "/path/to/checkpoint/storage"
-      }
-    }
-  }
-}
-```
-
-**Option 2: Local Development/Manual Installation**
-For local development or after manual installation, add to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -69,6 +44,8 @@ For local development or after manual installation, add to your `claude_desktop_
   }
 }
 ```
+
+Replace `/absolute/path/to/mcp-time-travel/` with the actual path where you cloned the repository.
 
 #### Other MCP Clients
 For other MCP-compatible clients, use:
